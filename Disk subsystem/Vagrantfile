@@ -1,0 +1,81 @@
+# -*- mode: ruby -*-
+# vim: set ft=ruby :
+
+MACHINES = {
+  :linux => {
+        :box_name => "centos/7",
+	:disks => {
+		
+		:sata2 => {
+                        :dfile => './sata2.vdi',
+                        :size => 250, # Megabytes
+						:port => 2
+		},
+        :sata3 => {
+                        :dfile => './sata3.vdi',
+                        :size => 250,
+                        :port => 3
+        },
+        :sata4 => {
+                        :dfile => './sata4.vdi',
+                        :size => 250, # Megabytes
+                        :port => 4
+        }
+	}
+  },
+}
+
+Vagrant.configure("2") do |config| 
+
+  MACHINES.each do |boxname, boxconfig| 
+
+      config.vm.define boxname do |box| 
+
+          box.vm.box = boxconfig[:box_name] 
+          
+          box.vm.provider :virtualbox do |vb| 
+            	  vb.customize ["modifyvm", :id, "--memory", "1024"] 
+                  needsController = false 
+		  boxconfig[:disks].each do |dname, dconf| 
+			  unless File.exist?(dconf[:dfile]) 
+				vb.customize ['createhd', '--filename', dconf[:dfile], '--variant', 'Fixed', '--size', dconf[:size]]
+                                needsController =  true 
+                          end
+		  end
+                  if needsController == true 
+                     vb.customize ["storagectl", :id, "--name", "SATA", "--add", "sata" ]
+                     boxconfig[:disks].each do |dname, dconf|
+                         vb.customize ['storageattach', :id,  '--storagectl', 'SATA', '--port', dconf[:port], '--device', 0, '--type', 'hdd', '--medium', dconf[:dfile]]
+                     end
+                  end
+          end
+ 	  box.vm.provision "shell", inline: <<-SHELL 
+	    #yum update -y
+	    yum install net-tools bash-completion.noarch mdadm -y
+	    mdadm --create --verbose /dev/md0 -l 5 -n 3  /dev/sd{b,c,d}
+		mkdir /etc/mdadm
+		mdadm --detail --scan --verbose | awk '/ARRAY/ {print}' >> /etc/mdadm/mdadm.conf
+		sleep 5
+		echo '  			>>>>>>>>>>>DESTROY RAID<<<<<<<<<<<'
+		mdadm /dev/md0 --fail /dev/sdb
+		cat /proc/mdstat
+		sleep 5
+		mdadm /dev/md0 --remove /dev/sdb
+		echo '  			>>>>>>>>>>RECOVERY RAID<<<<<<<<<<<<<'
+		mdadm /dev/md0 --add /dev/sdb
+		sleep 5
+		cat /proc/mdstat
+		sleep 5
+		echo '  			>>>>>>>>>>PART<<<<<<<<<<<<<<'
+		parted /dev/md0 mklabel gpt
+		parted /dev/md0 mkpart 1 ext4 0 50 Ignore > /dev/null 2>&1
+		parted /dev/md0 mkpart 2 ext4 51 100 Ignore > /dev/null 2>&1
+		parted /dev/md0 mkpart 3 ext4 101 150 Ignore > /dev/null 2>&1
+		parted /dev/md0 mkpart 4 ext4 151 200 Ignore > /dev/null 2>&1
+		parted /dev/md0 mkpart 5 ext4 201 250 Ignore > /dev/null 2>&1
+		parted /dev/md0 print
+  	  SHELL
+
+      end
+  end
+end
