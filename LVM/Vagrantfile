@@ -1,0 +1,93 @@
+# -*- mode: ruby -*-
+# vim: set ft=ruby :
+
+MACHINES = {
+  :linux => {
+        :box_name => "centos/7",
+	:disks => {
+		
+		:sata2 => {
+                        :dfile => './sata2.vdi',
+                        :size => 2048, # Megabytes
+						:port => 2
+		},
+		:sata3 => {
+                        :dfile => './sata3.vdi',
+                        :size => 512, # Megabytes
+						:port => 3
+		},
+		:sata4 => {
+                        :dfile => './sata4.vdi',
+                        :size => 512, # Megabytes
+						:port => 4
+		},
+		:sata5 => {
+                        :dfile => './sata5.vdi',
+                        :size => 512, # Megabytes
+						:port => 5
+		}
+	}
+  },
+}
+
+Vagrant.configure("2") do |config| 
+
+  MACHINES.each do |boxname, boxconfig| 
+
+      config.vm.define boxname do |box| 
+
+          box.vm.box = boxconfig[:box_name] 
+          
+          box.vm.provider :virtualbox do |vb| 
+            	  vb.customize ["modifyvm", :id, "--memory", "1024"] 
+                  needsController = false 
+		  boxconfig[:disks].each do |dname, dconf| 
+			  unless File.exist?(dconf[:dfile]) 
+				vb.customize ['createhd', '--filename', dconf[:dfile], '--variant', 'Fixed', '--size', dconf[:size]]
+                                needsController =  true 
+                          end
+		  end
+                  if needsController == true 
+                     vb.customize ["storagectl", :id, "--name", "SATA", "--add", "sata" ]
+                     boxconfig[:disks].each do |dname, dconf|
+                         vb.customize ['storageattach', :id,  '--storagectl', 'SATA', '--port', dconf[:port], '--device', 0, '--type', 'hdd', '--medium', dconf[:dfile]]
+                     end
+                  end
+          end
+ 	  box.vm.provision "shell", inline: <<-SHELL 
+	    #yum update -y
+	    yum install net-tools bash-completion.noarch lvm2 -y
+	    pvcreate /dev/sd{b,d,c}
+	    vgcreate otus /dev/sdb
+	    lvcreate -l 100%FREE -n lv00 otus
+		mkfs.ext4 /dev/mapper/otus-lv00
+		e2fsck -f /dev/mapper/otus-lv00
+		resize2fs -p /dev/mapper/otus-lv00 500M
+		lvreduce -L 500M /dev/mapper/otus-lv00 --force
+		mount /dev/mapper/otus-lv00 /mnt/
+		/bin/cp -Rvax /home/* /mnt
+		umount /mnt
+		echo '/dev/mapper/otus-lv00 /home             ext4 defaults 0 0' >> /etc/fstab
+		mount -a
+
+		touch /home/file{1..20}
+		lvcreate -L 500M -s -n snap /dev/otus/lv00
+		rm -f /home/file{11..20}
+
+		umount /home
+		lvconvert  --merge /dev/otus/snap
+		mount -a 
+
+		vgcreate vg0 /dev/sd{d,c}
+ 		lvcreate -l+80%FREE -m1 -n mirror vg0
+ 		mkfs.ext4 /dev/mapper/vg0-mirror
+		mount /dev/mapper/vg0-mirror /mnt
+		cp -Rvax /var/* /mnt
+		umount /mnt
+		echo '/dev/mapper/vg0-mirror /var             ext4 defaults 0 0' >> /etc/fstab
+
+
+	  SHELL
+      end
+  end
+end
