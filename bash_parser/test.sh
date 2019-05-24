@@ -2,7 +2,7 @@
 
 loc=/tmp/loc
 parTmp=/tmp/pars.tmp
-log=/var/log/httpd/privratnik.net.log #log apache
+log=/var/log/httpd/access_log #log apache
 LANG=en_US.UTF-8 #Уставливаем локаль, действует до окнчания сессии.
 
 if ( set -o noclobber; echo "$$" > "$loc") 2>/dev/null; then
