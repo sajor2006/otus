@@ -1,0 +1,10 @@
+[Unit]
+Description=test
+
+[Timer]
+OnUnitActiveSec=5s
+OnBootSec=0
+Unit=test.service
+
+[Install]
+WantedBy=timers.target
