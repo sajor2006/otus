@@ -1,0 +1,9 @@
+[Unit]
+Description=test job
+
+[Service]
+Type=simple
+ExecStart=/tmp/1.sh
+
+[Install]
+WantedBy=multi-user.target
