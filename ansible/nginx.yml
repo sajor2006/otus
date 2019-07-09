@@ -44,4 +44,4 @@
     - name: reload nginx
       systemd:
         name: nginx
-        state: reloaded
+        state: reloaded 
