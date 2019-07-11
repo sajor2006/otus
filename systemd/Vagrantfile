@@ -40,7 +40,6 @@ Vagrant.configure("2") do |config|
                   end
           end
  	  box.vm.provision "shell", inline: <<-SHELL 
-
 cat > /etc/sysconfig/watchlog <<EOF
 # Configuration file for my watchdog service
 # Place it to /etc/sysconfig
@@ -48,7 +47,6 @@ cat > /etc/sysconfig/watchlog <<EOF
 WORD="ALERT"
 LOG=/var/log/watchlog.log
 EOF
-
 cat > /opt/watchlog.sh <<EOF
 #!/bin/bash
 WORD=\\$1
@@ -62,18 +60,14 @@ exit 0
 fi
 EOF
 chmod +x /opt/watchlog.sh
-
-
 cat > /usr/lib/systemd/system/watchlog.service <<EOF
 [Unit]
 Description=My watchlog service
-
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/sysconfig/watchlog
 ExecStart=/opt/watchlog.sh \\$WORD \\$LOG
 EOF
-
 cat > /usr/lib/systemd/system/watchlog.timer <<EOF
 [Unit]
 Description=Run watchlog script every 30 second
@@ -84,7 +78,6 @@ Unit=watchlog.service
 [Install]
 WantedBy=multi-user.target
 EOF
-
 cat > /var/log/watchlog.log <<LOG
 -------
 sdgsdfpodg ALERT
@@ -94,11 +87,47 @@ vcbcbvvbALERT
 sdgffdgALERTrgfdgfdg
 --------
 LOG
-
 systemctl start watchlog.timer
-tail /var/log/messages
 
-	  SHELL
+yum install epel-release -y && yum install spawn-fcgi php php-cli mod_fcgid httpd -y
+
+cat > /etc/sysconfig/spawn-fcgi <<CONF
+
+SOCKET=/var/run/php-fcgi.sock
+OPTIONS="-u apache -g apache -s $SOCKET -S -M 0600 -C 32 -F 1 -- /usr/bin/php-cgi"
+
+CONF
+
+
+cat > /etc/systemd/system/spawn-fcgi.service <<SERVICE
+
+[Unit]
+Description=Spawn-fcgi startup service by Otus
+After=network.target
+[Service]
+Type=simple
+PIDFile=/var/run/spawn-fcgi.pid
+EnvironmentFile=/etc/sysconfig/spawn-fcgi
+ExecStart=/usr/bin/spawn-fcgi -n $OPTIONS
+KillMode=process
+[Install]
+WantedBy=multi-user.target
+
+SERVICE
+mv /usr/lib/systemd/system/httpd.service /usr/lib/systemd/system/httpd@.service
+sed -i 's/etc\/sysconfig\/httpd/etc\/sysconfig\/httpd-%I/g' /usr/lib/systemd/system/httpd@.service
+
+echo 'OPTIONS=-f conf/first.conf' > /etc/sysconfig/httpd-first
+echo 'OPTIONS=-f conf/second.conf' > /etc/sysconfig/httpd-second
+
+cp /etc/httpd/conf/httpd.conf /etc/httpd/conf/second.conf
+ln -s /etc/httpd/conf/httpd.conf /etc/httpd/conf/first.conf
+
+
+sed -i -e 's/Listen 80/Listen 8080/g'  -e '/PidFile/a PidFile   \/var\/run\/httpd-second.pid' /etc/httpd/conf/second.conf
+
+
+SHELL
       end
   end
 end
