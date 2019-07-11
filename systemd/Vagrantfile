@@ -98,11 +98,6 @@ OPTIONS="-u apache -g apache -s $SOCKET -S -M 0600 -C 32 -F 1 -- /usr/bin/php-cg
 
 CONF
 
-
-### Так не срабатывает когда поднимается
-##sed -i 's/etc\/sysconfig\/httpd/etc\/sysconfig\/httpd-%I/g' /usr/lib/systemd/system/httpd@.service
-## Спешу сделал так
-
 cat > /etc/systemd/system/spawn-fcgi.service <<SERVICE
 
 [Unit]
@@ -120,6 +115,10 @@ WantedBy=multi-user.target
 SERVICE
 
 rm -rf /usr/lib/systemd/system/httpd.service 
+
+### Так не срабатывает когда поднимается
+##sed -i 's/etc\/sysconfig\/httpd/etc\/sysconfig\/httpd-%I/g' /usr/lib/systemd/system/httpd@.service
+## Спешу сделал так
 cat > /usr/lib/systemd/system/httpd@.service <<UNIT
 
 [Unit]
