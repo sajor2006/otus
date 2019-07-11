@@ -99,6 +99,10 @@ OPTIONS="-u apache -g apache -s $SOCKET -S -M 0600 -C 32 -F 1 -- /usr/bin/php-cg
 CONF
 
 
+### Так не срабатывает когда поднимается
+##sed -i 's/etc\/sysconfig\/httpd/etc\/sysconfig\/httpd-%I/g' /usr/lib/systemd/system/httpd@.service
+## Спешу сделал так
+
 cat > /etc/systemd/system/spawn-fcgi.service <<SERVICE
 
 [Unit]
@@ -114,18 +118,47 @@ KillMode=process
 WantedBy=multi-user.target
 
 SERVICE
-mv /usr/lib/systemd/system/httpd.service /usr/lib/systemd/system/httpd@.service
-sed -i 's/etc\/sysconfig\/httpd/etc\/sysconfig\/httpd-%I/g' /usr/lib/systemd/system/httpd@.service
+
+rm -rf /usr/lib/systemd/system/httpd.service 
+cat > /usr/lib/systemd/system/httpd@.service <<UNIT
+
+[Unit]
+Description=The Apache HTTP Server
+After=network.target remote-fs.target nss-lookup.target
+Documentation=man:httpd(8)
+Documentation=man:apachectl(8)
+
+[Service]
+Type=notify
+EnvironmentFile=/etc/sysconfig/httpd-%I
+ExecStart=/usr/sbin/httpd $OPTIONS -DFOREGROUND
+ExecReload=/usr/sbin/httpd $OPTIONS -k graceful
+ExecStop=/bin/kill -WINCH ${MAINPID}
+# We want systemd to give httpd some time to finish gracefully, but still want
+# it to kill httpd after TimeoutStopSec if something went wrong during the
+# graceful stop. Normally, Systemd sends SIGTERM signal right after the
+# ExecStop, which would kill httpd. We are sending useless SIGCONT here to give
+# httpd time to finish.
+KillSignal=SIGCONT
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+
+
 
 echo 'OPTIONS=-f conf/first.conf' > /etc/sysconfig/httpd-first
 echo 'OPTIONS=-f conf/second.conf' > /etc/sysconfig/httpd-second
 
-cp /etc/httpd/conf/httpd.conf /etc/httpd/conf/second.conf
-ln -s /etc/httpd/conf/httpd.conf /etc/httpd/conf/first.conf
+cp /etc/httpd/conf/httpd.conf /etc/httpd/conf/second.conf 
+ln -s /etc/httpd/conf/httpd.conf /etc/httpd/conf/first.conf 
 
-
-sed -i -e 's/Listen 80/Listen 8080/g'  -e '/PidFile/a PidFile   \/var\/run\/httpd-second.pid' /etc/httpd/conf/second.conf
-
+sed -i -e 's/Listen 80/Listen 8080/g'  -e '/least PidFile/a PidFile   \/var\/run\/httpd-second.pid' -e 's/#ServerName/ServerName/g' /etc/httpd/conf/second.conf
+systemctl start httpd@second
+systemctl start httpd@first
+ss -tnulp | grep httpd
 
 SHELL
       end
