@@ -73,6 +73,7 @@ cat > /usr/lib/systemd/system/watchlog.timer <<EOF
 Description=Run watchlog script every 30 second
 [Timer]
 # Run every 30 second
+AccuracySec=1
 OnUnitActiveSec=30
 Unit=watchlog.service
 [Install]
