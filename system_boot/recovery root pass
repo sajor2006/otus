@@ -1,0 +1,6 @@
+rw init=/sysroot/bin/sh
+Ctrl + X 
+chroot /sysroot 
+passwd root 
+обновляем SELinux touch /.autorelabel 
+reboot
